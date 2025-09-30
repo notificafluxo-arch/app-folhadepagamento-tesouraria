@@ -71,24 +71,26 @@ if uploaded_file:
     # =====================
     # Aba 3 - Previdência
     # =====================
-    previdencia_filtros = [
-        "CONTRIBUICAO SIMPAS",
-        "CONTRIBUICAO SIMPAS 13º SALARIO",
-        "PREVIDENCIA MUNICIPAL - PATRONAL FUNDO"
-    ]
+    previdencia_filtros = [unidecode.unidecode(f).upper().strip() for f in [
+    "CONTRIBUICAO SIMPAS",
+    "CONTRIBUICAO SIMPAS 13º SALARIO",
+    "PREVIDENCIA MUNICIPAL - PATRONAL FUNDO"
+]]
 
     # Filtrar sem acento e sem diferença entre maiúsculas/minúsculas
     previdencia = (
-        base[base["DESCRIÇÃO DO EVENTO"].apply(lambda x: any(unidecode.unidecode(str(x)).upper().strip() == f for f in previdencia_filtros))]
-        .pivot_table(
-            index="DESCRIÇÃO DO EVENTO",
-            columns="FONTE DE RECURSO",
-            values="VALOR DO EVENTO",
-            aggfunc="sum",
-            fill_value=0
-        )
-        .reset_index()
+    base[base["DESCRIÇÃO DO EVENTO"].apply(
+        lambda x: any(f in unidecode.unidecode(str(x)).upper().strip() for f in previdencia_filtros)
+    )]
+    .pivot_table(
+        index="DESCRIÇÃO DO EVENTO",
+        columns="FONTE DE RECURSO",
+        values="VALOR DO EVENTO",
+        aggfunc="sum",
+        fill_value=0
     )
+    .reset_index()
+)
 
     # Exibição em abas
     aba1, aba2, aba3 = st.tabs([
@@ -117,3 +119,4 @@ if uploaded_file:
         file_name="resultado_folha_rhstyle.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
