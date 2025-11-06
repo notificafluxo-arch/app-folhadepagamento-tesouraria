@@ -11,31 +11,29 @@ uploaded_file = st.file_uploader("Carregue a planilha da folha (.xlsx)", type=["
 
 if uploaded_file:
     # Lê a planilha
-    base = pd.read_excel(uploaded_file)
+    base = pd.read_excel(uploaded_file, header=0)
 
-    # Normaliza nomes das colunas
-    base.columns = base.columns.str.strip().str.upper()
+    # === VINCULAR POR POSIÇÃO DAS COLUNAS ===
+    # (Ignora colunas extras)
+    base = base.iloc[:, :8]  # Garante até a coluna H (índice 7)
+    base.columns = [
+        "ORGANOGRAMA",              # Coluna A (0)
+        "DESCRIÇÃO DO ORGANOGRAMA", # Coluna B (1)
+        "EVENTO",                   # Coluna C (2)
+        "DESCRIÇÃO DO EVENTO",      # Coluna D (3)
+        "P/D/PATRONAL",             # Coluna E (4)
+        "VÍNCULO",                  # Coluna F (5)
+        "DESCRIÇÃO DO VÍNCULO",     # Coluna G (6)
+        "VALOR DO EVENTO"           # Coluna H (7)
+    ]
 
-    # Mapeamento dos cabeçalhos esperados
-    col_map = {
-        "ORGANOGRAMA": "ORGANOGRAMA",
-        "DESCRIÇÃO DO ORGANOGRAMA": "DESCRIÇÃO DO ORGANOGRAMA",
-        "EVENTO": "EVENTO",
-        "DESCRIÇÃO DO EVENTO": "DESCRIÇÃO DO EVENTO",
-        "P/D/PATRONAL": "P/D/PATRONAL",
-        "VÍNCULO": "VÍNCULO",
-        "DESCRIÇÃO DO VÍNCULO": "DESCRIÇÃO DO VÍNCULO",
-        "VALOR DO EVENTO": "VALOR DO EVENTO"
-    }
-
-    # Verificação das colunas obrigatórias
-    for key, col in col_map.items():
-        if col not in base.columns:
-            st.error(f"❌ Coluna obrigatória não encontrada: {col}")
-            st.stop()
-
-    # Criar coluna "FONTE DE RECURSO"
+    # === Criar coluna "FONTE DE RECURSO" ===
     base["FONTE DE RECURSO"] = base["ORGANOGRAMA"].astype(str).str[-8:]
+
+    # === Coluna IR (marcação de eventos de IRRF) ===
+    base["IR"] = base["DESCRIÇÃO DO EVENTO"].apply(
+        lambda x: "IR" if str(x).strip().upper() in ["I.R.R.F.", "I.R.R.F. 13º SALÁRIO"] else ""
+    )
 
     # =====================
     # Aba 1 - Folha de Pagamento
@@ -49,6 +47,18 @@ if uploaded_file:
                 g["DESCRIÇÃO DO EVENTO"].str.contains("AUXILIO ALIMENTACAO", case=False, na=False),
                 "VALOR DO EVENTO"
             ].sum(),
+            "Liquido": (
+                g.loc[g["P/D/PATRONAL"] == "P", "VALOR DO EVENTO"].sum()
+                - g.loc[g["P/D/PATRONAL"] == "D", "VALOR DO EVENTO"].sum()
+                - g.loc[
+                    g["DESCRIÇÃO DO EVENTO"].str.contains("AUXILIO ALIMENTACAO", case=False, na=False),
+                    "VALOR DO EVENTO"
+                ].sum()
+            ),
+            "Total Liquido com Vale": (
+                g.loc[g["P/D/PATRONAL"] == "P", "VALOR DO EVENTO"].sum()
+                - g.loc[g["P/D/PATRONAL"] == "D", "VALOR DO EVENTO"].sum()
+            ),
             "IR": g.loc[
                 g["DESCRIÇÃO DO EVENTO"].isin(["I.R.R.F.", "I.R.R.F. 13º SALÁRIO"]),
                 "VALOR DO EVENTO"
@@ -57,34 +67,15 @@ if uploaded_file:
         .reset_index()
     )
 
-    # Mantém as colunas na ordem desejada
+    # Reordena para garantir o IR na coluna G
     folha_pagamento = folha_pagamento[[
-        "FONTE DE RECURSO",    # A
-        "Proventos",           # B
-        "Descontos",           # C
-        "Auxilio_Alimentacao", # D
-        "Liquido",             # E (será criado abaixo)
-        "IR",                  # F (mas movemos depois)
-        "Total Liquido com Vale"  # G (será criado abaixo)
-    ][:4]]  # Pegamos as 4 primeiras antes de continuar
-
-    # Calcula os valores líquidos
-    folha_pagamento["Liquido"] = (
-        folha_pagamento["Proventos"] - folha_pagamento["Descontos"] - folha_pagamento["Auxilio_Alimentacao"]
-    )
-    folha_pagamento["Total Liquido com Vale"] = (
-        folha_pagamento["Proventos"] - folha_pagamento["Descontos"]
-    )
-
-    # Reordena para que o IR fique na coluna G (7ª posição)
-    folha_pagamento = folha_pagamento[[
-        "FONTE DE RECURSO",          # A
-        "Proventos",                 # B
-        "Descontos",                 # C
-        "Auxilio_Alimentacao",       # D
-        "Liquido",                   # E
-        "Total Liquido com Vale",    # F
-        "IR"                         # G → pedido do usuário
+        "FONTE DE RECURSO",       # A
+        "Proventos",              # B
+        "Descontos",              # C
+        "Auxilio_Alimentacao",    # D
+        "Liquido",                # E
+        "Total Liquido com Vale", # F
+        "IR"                      # G ✅
     ]]
 
     # =====================
@@ -105,14 +96,11 @@ if uploaded_file:
     # =====================
     # Aba 3 - Previdência
     # =====================
-    previdencia_filtros = [
-        unidecode.unidecode(f).upper().strip()
-        for f in [
-            "CONTRIBUICAO SIMPAS",
-            "CONTRIBUICAO SIMPAS 13º SALARIO",
-            "PREVIDENCIA MUNICIPAL - PATRONAL FUNDO"
-        ]
-    ]
+    previdencia_filtros = [unidecode.unidecode(f).upper().strip() for f in [
+        "CONTRIBUICAO SIMPAS",
+        "CONTRIBUICAO SIMPAS 13º SALARIO",
+        "PREVIDENCIA MUNICIPAL - PATRONAL FUNDO"
+    ]]
 
     previdencia = (
         base[base["DESCRIÇÃO DO EVENTO"].apply(
@@ -128,9 +116,7 @@ if uploaded_file:
         .reset_index()
     )
 
-    # =====================
-    # Exibição em abas
-    # =====================
+    # === Exibição em abas ===
     aba1, aba2, aba3 = st.tabs([
         "📑 Folha de Pagamento",
         "💰 Retenções",
@@ -139,16 +125,12 @@ if uploaded_file:
 
     with aba1:
         st.dataframe(folha_pagamento, use_container_width=True)
-
     with aba2:
         st.dataframe(retencoes, use_container_width=True)
-
     with aba3:
         st.dataframe(previdencia, use_container_width=True)
 
-    # =====================
-    # Botão de Download
-    # =====================
+    # === Download do Excel ===
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         folha_pagamento.to_excel(writer, sheet_name="Folha de Pagamento", index=False)
