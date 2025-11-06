@@ -3,8 +3,8 @@ import pandas as pd
 import io
 import unidecode
 
-st.set_page_config(page_title="📊 App Folha de Pagamento - RH", layout="wide")
-st.title("📊 App Folha de Pagamento - RH")
+st.set_page_config(page_title="📊 App Folha de Pagamento", layout="wide")
+st.title("📊 App Folha de Pagamento")
 
 # Upload do arquivo
 uploaded_file = st.file_uploader("Carregue a planilha da folha (.xlsx)", type=["xlsx"])
@@ -127,3 +127,4 @@ if uploaded_file:
         file_name="resultado_folha_rhstyle.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
