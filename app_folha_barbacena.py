@@ -14,7 +14,6 @@ if uploaded_file:
     base = pd.read_excel(uploaded_file, header=0)
 
     # === VINCULAR POR POSIÇÃO DAS COLUNAS ===
-    # (Ignora colunas extras)
     base = base.iloc[:, :8]  # Garante até a coluna H (índice 7)
     base.columns = [
         "ORGANOGRAMA",              # Coluna A (0)
@@ -116,7 +115,29 @@ if uploaded_file:
         .reset_index()
     )
 
-    # === Exibição em abas ===
+    # =====================
+    # FORMATAÇÃO EM MOEDA (APENAS COLUNAS MONETÁRIAS)
+    # =====================
+    # Aba 1 - Folha de Pagamento
+    moeda_cols = ["Proventos", "Descontos", "Auxilio_Alimentacao", "Liquido", "Total Liquido com Vale", "IR"]
+    for col in moeda_cols:
+        folha_pagamento[col] = folha_pagamento[col].apply(
+            lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        )
+
+    # Aba 2 - Retenções (apenas colunas numéricas, ignora a primeira)
+    retencoes.iloc[:, 1:] = retencoes.iloc[:, 1:].applymap(
+        lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    )
+
+    # Aba 3 - Previdência (apenas colunas numéricas, ignora a primeira)
+    previdencia.iloc[:, 1:] = previdencia.iloc[:, 1:].applymap(
+        lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    )
+
+    # =====================
+    # Exibição em abas
+    # =====================
     aba1, aba2, aba3 = st.tabs([
         "📑 Folha de Pagamento",
         "💰 Retenções",
@@ -130,7 +151,9 @@ if uploaded_file:
     with aba3:
         st.dataframe(previdencia, use_container_width=True)
 
-    # === Download do Excel ===
+    # =====================
+    # Download do Excel
+    # =====================
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         folha_pagamento.to_excel(writer, sheet_name="Folha de Pagamento", index=False)
